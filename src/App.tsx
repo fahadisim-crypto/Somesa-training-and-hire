@@ -25,6 +25,9 @@ import { TeachOnSomesa } from './components/TeachOnSomesa';
 import { SubscriptionModal } from './components/SubscriptionModal';
 import { BeforeAfterGallery } from './components/BeforeAfterGallery';
 import { AIPortfolioVideoStudio } from './components/AIPortfolioVideoStudio';
+import { CustomerTestimonialsSlider } from './components/CustomerTestimonialsSlider';
+import { CohortSurveyBanner } from './components/CohortSurveyBanner';
+import { CohortSurveyModal } from './components/CohortSurveyModal';
 import { Footer } from './components/Footer';
 import { BottomMobileNav } from './components/BottomMobileNav';
 import { 
@@ -32,8 +35,23 @@ import {
   INITIAL_PROJECTS, 
   INITIAL_REQUESTS,
   INITIAL_COURSES,
-  INITIAL_TUTOR_REQUESTS
+  INITIAL_TUTOR_REQUESTS,
+  INITIAL_SURVEY_RESPONSES
 } from './data/mockData';
+import { 
+  fetchCreatorsFromSupabase,
+  fetchHireRequestsFromSupabase,
+  fetchSurveyResponsesFromSupabase,
+  saveCreatorToSupabase,
+  saveHireRequestToSupabase,
+  saveSurveyResponseToSupabase,
+  isSupabaseConfigured
+} from './lib/supabase';
+import { 
+  getCurrentUser, 
+  signOutStudent 
+} from './lib/auth';
+import { StudentAuthModal } from './components/StudentAuthModal';
 import { 
   Creator, 
   ProjectCaseStudy, 
@@ -41,7 +59,9 @@ import {
   ActiveView, 
   CategoryType,
   Course,
-  TutorRequest
+  TutorRequest,
+  CohortSurveyResponse,
+  StudentUser
 } from './types';
 
 export default function App() {
@@ -86,6 +106,14 @@ export default function App() {
     return INITIAL_TUTOR_REQUESTS;
   });
 
+  const [surveyResponses, setSurveyResponses] = useState<CohortSurveyResponse[]>(() => {
+    const saved = localStorage.getItem('somesa_survey_responses');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* fallback */ }
+    }
+    return INITIAL_SURVEY_RESPONSES;
+  });
+
   // User subscription / enrollment state
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('somesa_enrolled_courses');
@@ -102,13 +130,25 @@ export default function App() {
 
   // Navigation & Modal State
   const [activeView, setActiveView] = useState<ActiveView>('home');
+  const [previousView, setPreviousView] = useState<ActiveView>('home');
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectCaseStudy | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [hireModalCreator, setHireModalCreator] = useState<Creator | null>(null);
   const [isHireModalOpen, setIsHireModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPurpose, setAuthPurpose] = useState('Access your SOMESA creator profile & courses');
+  const [currentUser, setCurrentUser] = useState<StudentUser | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<CategoryType>('All');
+
+  // Load user session on mount
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) setCurrentUser(user);
+    });
+  }, []);
 
   // Local storage synchronization
   useEffect(() => {
@@ -132,6 +172,10 @@ export default function App() {
   }, [tutorRequests]);
 
   useEffect(() => {
+    localStorage.setItem('somesa_survey_responses', JSON.stringify(surveyResponses));
+  }, [surveyResponses]);
+
+  useEffect(() => {
     localStorage.setItem('somesa_enrolled_courses', JSON.stringify(enrolledCourseIds));
   }, [enrolledCourseIds]);
 
@@ -139,11 +183,60 @@ export default function App() {
     localStorage.setItem('somesa_has_all_access', hasAllAccessPass ? 'true' : 'false');
   }, [hasAllAccessPass]);
 
+  // Async query on mount: Fetch live creators, projects, hire requests, and surveys from Supabase
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncFromSupabase() {
+      if (!isSupabaseConfigured) {
+        return;
+      }
+
+      try {
+        const [remoteCreators, remoteRequests, remoteSurveys] = await Promise.all([
+          fetchCreatorsFromSupabase(),
+          fetchHireRequestsFromSupabase(),
+          fetchSurveyResponsesFromSupabase()
+        ]);
+
+        if (!isMounted) return;
+
+        if (remoteCreators && remoteCreators.length > 0) {
+          setCreators(remoteCreators);
+          const allProjects = remoteCreators.flatMap((c) => c.projects || []);
+          if (allProjects.length > 0) {
+            setProjects(allProjects);
+          }
+        }
+
+        if (remoteRequests && remoteRequests.length > 0) {
+          setRequests(remoteRequests);
+        }
+
+        if (remoteSurveys && remoteSurveys.length > 0) {
+          setSurveyResponses(remoteSurveys);
+        }
+      } catch (err) {
+        console.warn('[Supabase Sync Error]', err);
+      }
+    }
+
+    syncFromSupabase();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Featured Creator: Aisha Namukasa
   const aishaCreator = creators.find((c) => c.slug === 'aisha-namukasa') || creators[0];
 
   // Navigation handlers
-  const handleSelectCreator = (creator: Creator) => {
+  const handleSelectCreator = (creator: Creator, sourceView?: ActiveView) => {
+    if (sourceView) {
+      setPreviousView(sourceView);
+    } else if (activeView !== 'creator-profile') {
+      setPreviousView(activeView);
+    }
     setSelectedCreator(creator);
     setActiveView('creator-profile');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -173,6 +266,12 @@ export default function App() {
     setSelectedProject(project);
   };
 
+  const handleSubmitSurveyResponse = (response: CohortSurveyResponse) => {
+    setSurveyResponses((prev) => [response, ...prev]);
+    // Persist to Supabase cohort_surveys table
+    saveSurveyResponseToSupabase(response);
+  };
+
   const handleOpenHire = (creator: Creator) => {
     setHireModalCreator(creator);
     setIsHireModalOpen(true);
@@ -198,6 +297,8 @@ export default function App() {
       status: 'Pending'
     };
     setRequests((prev) => [newRequest, ...prev]);
+    // Persist directly to Supabase project_requests table
+    saveHireRequestToSupabase(newRequest);
   };
 
   const handleSubmitTutorRequest = (reqData: Omit<TutorRequest, 'id' | 'created_at' | 'status'>) => {
@@ -215,6 +316,8 @@ export default function App() {
     if (newCreator.projects.length > 0) {
       setProjects((prev) => [...newCreator.projects, ...prev]);
     }
+    // Persist to Supabase creators and projects tables
+    saveCreatorToSupabase(newCreator);
   };
 
   const handleSubmitNewCourse = (newCourse: Course) => {
@@ -292,6 +395,15 @@ export default function App() {
           requests.filter((r) => r.status === 'Pending').length + 
           tutorRequests.filter((t) => t.status === 'New').length
         }
+        currentUser={currentUser}
+        onOpenAuthModal={() => {
+          setAuthPurpose('Access your SOMESA creator profile & courses');
+          setIsAuthModalOpen(true);
+        }}
+        onSignOut={async () => {
+          await signOutStudent();
+          setCurrentUser(null);
+        }}
       />
 
       {/* Main View Router */}
@@ -358,6 +470,19 @@ export default function App() {
               projects={projects}
               onSelectProject={handleSelectProject}
             />
+
+            {/* Platform Credibility & Customer Testimonial Slider */}
+            <CustomerTestimonialsSlider
+              onHireCreator={handleOpenHire}
+              onSelectCreatorBySlug={handleSelectCreatorBySlug}
+            />
+
+            {/* Market Research Survey Banner for Next Cohort */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+              <CohortSurveyBanner 
+                onOpenSurvey={() => setIsSurveyModalOpen(true)} 
+              />
+            </div>
           </div>
         )}
 
@@ -366,7 +491,7 @@ export default function App() {
           <div className="pt-6">
             <CreatorDiscovery
               creators={creators}
-              onSelectCreator={handleSelectCreator}
+              onSelectCreator={(c) => handleSelectCreator(c, 'creators')}
               onHireCreator={handleOpenHire}
               initialCategory={selectedCategoryFilter}
             />
@@ -377,7 +502,25 @@ export default function App() {
         {activeView === 'creator-profile' && selectedCreator && (
           <CreatorProfile
             creator={selectedCreator}
-            onBack={() => setActiveView('creators')}
+            onBack={() => {
+              setActiveView(previousView || 'creators');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            backLabel={
+              previousView === 'onboarding' 
+                ? 'Back to Portfolio Setup' 
+                : previousView === 'for-creators' 
+                ? 'Back to Creators Hub' 
+                : previousView === 'services' 
+                ? 'Back to Services' 
+                : previousView === 'admin-stats' 
+                ? 'Back to Admin Overview' 
+                : previousView === 'learn' 
+                ? 'Back to Academy' 
+                : previousView === 'how-it-works' 
+                ? 'Back to How It Works' 
+                : 'Back to Creators Directory'
+            }
             onHire={handleOpenHire}
             onSelectProject={handleSelectProject}
           />
@@ -490,10 +633,11 @@ export default function App() {
         {activeView === 'for-creators' && (
           <ForCreators
             onStartOnboarding={() => {
+              setPreviousView('for-creators');
               setActiveView('onboarding');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            onViewExamplePortfolio={() => handleSelectCreator(aishaCreator)}
+            onViewExamplePortfolio={() => handleSelectCreator(aishaCreator, 'for-creators')}
             sampleCreator={aishaCreator}
           />
         )}
@@ -502,8 +646,13 @@ export default function App() {
         {activeView === 'onboarding' && (
           <CreatorOnboarding
             onPublishSuccess={handlePublishNewCreator}
-            onCancel={() => setActiveView('home')}
+            onCancel={() => {
+              setActiveView(previousView === 'onboarding' ? 'for-creators' : (previousView || 'for-creators'));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onViewExamplePortfolio={() => handleSelectCreator(aishaCreator, 'onboarding')}
             onViewCreatedProfile={(newCreator) => {
+              setPreviousView('home');
               setSelectedCreator(newCreator);
               setActiveView('creator-profile');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -519,7 +668,8 @@ export default function App() {
             requests={requests}
             courses={courses}
             tutorRequests={tutorRequests}
-            onSelectCreator={handleSelectCreator}
+            surveyResponses={surveyResponses}
+            onSelectCreator={(c) => handleSelectCreator(c, 'admin-stats')}
             onSelectCourse={handleSelectCourse}
             onUpdateRequestStatus={handleUpdateRequestStatus}
             onUpdateTutorRequest={handleUpdateTutorRequest}
@@ -572,6 +722,24 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         hasAllAccessPass={hasAllAccessPass}
+      />
+
+      {/* Cohort Market Research Survey Modal */}
+      <CohortSurveyModal
+        isOpen={isSurveyModalOpen}
+        onClose={() => setIsSurveyModalOpen(false)}
+        onSubmitSurvey={handleSubmitSurveyResponse}
+      />
+
+      {/* Student & Creator Authentication Modal */}
+      <StudentAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        purpose={authPurpose}
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthModalOpen(false);
+        }}
       />
 
       {/* Bottom Mobile Tab Bar */}

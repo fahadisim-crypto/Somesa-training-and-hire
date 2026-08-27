@@ -1,4 +1,4 @@
-import { Creator, ProjectCaseStudy, HireRequest, Course, TutorRequest } from '../types';
+import { Creator, ProjectCaseStudy, HireRequest, Course, TutorRequest, CohortSurveyResponse } from '../types';
 
 export const INITIAL_PROJECTS: ProjectCaseStudy[] = [
   {
@@ -835,6 +835,7 @@ export const INITIAL_REQUESTS: HireRequest[] = [
     projectDescription: 'Need 4 short video reels showing our beekeeping hives and new honey bottle sizes for TikTok & Instagram.',
     budget: 'UGX 300,000',
     timeline: 'This week',
+    timelineEstimate: '3–5 days (Short turnaround)',
     createdAt: '2 hours ago',
     status: 'Pending'
   },
@@ -850,6 +851,7 @@ export const INITIAL_REQUESTS: HireRequest[] = [
     projectDescription: 'We are launching birthday cake boxes and need custom sticker designs and cake menu price cards.',
     budget: 'UGX 180,000',
     timeline: 'As soon as possible',
+    timelineEstimate: '1–2 weeks (Standard)',
     createdAt: '1 day ago',
     status: 'In Progress'
   },
@@ -864,10 +866,45 @@ export const INITIAL_REQUESTS: HireRequest[] = [
     projectDescription: 'Looking for someone to manage our TikTok account for the upcoming festive fashion sale.',
     budget: 'UGX 450,000 / month',
     timeline: 'This month',
+    timelineEstimate: '1 month+ (Monthly retainer)',
     createdAt: '2 days ago',
     status: 'Contacted'
   }
 ];
+
+export const INITIAL_SURVEY_RESPONSES: CohortSurveyResponse[] = [
+  {
+    id: 'survey-1',
+    businessName: 'Pearl Coffee Roasters (Masaka)',
+    industry: 'Agribusiness & Farming',
+    skillsNeeded: [
+      'Short-Form Video (TikTok & Reels)',
+      'Smartphone Product Photography',
+      'Bilingual Copywriting (Luganda + English)'
+    ],
+    hiringTimeline: 'Immediate (Next 1–2 weeks)',
+    monthlyCreativeBudget: 'UGX 500,000 – UGX 1,500,000 / month',
+    additionalFeedback: 'We need creators who know how to film out on farms and communicate clearly with coffee cooperatives.',
+    contactEmailOrPhone: '+256 772 334455 / coffee@pearlroasters.ug',
+    createdAt: '3 hours ago'
+  },
+  {
+    id: 'survey-2',
+    businessName: 'Nabweru Herbal Cosmetics',
+    industry: 'Artisan Goods, Soaps & Crafts',
+    skillsNeeded: [
+      'Product Packaging & Label Design',
+      'Canva & Social Media Graphics',
+      'WhatsApp Business Catalogs & Marketing'
+    ],
+    hiringTimeline: 'Within the next 1–2 months',
+    monthlyCreativeBudget: 'UGX 200,000 – UGX 500,000 / month',
+    additionalFeedback: 'Looking for youth who know how to design waterproof soap labels that meet local trade standards.',
+    contactEmailOrPhone: 'nabweru.herbal@gmail.com',
+    createdAt: '1 day ago'
+  }
+];
+
 
 export const CATEGORIES = [
   'All',

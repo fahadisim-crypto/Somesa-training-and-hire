@@ -1,26 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MapPin, CheckCircle2, ArrowLeft, Send, Share2, Copy, Check, MessageSquare, 
   Instagram, Smartphone, Globe, Briefcase, Award, Sparkles, ExternalLink, Calendar,
-  Eye, Clock, Tag
+  Eye, Clock, Tag, Star, MessageSquarePlus
 } from 'lucide-react';
-import { Creator, ProjectCaseStudy } from '../types';
+import { Creator, ProjectCaseStudy, CreatorReview } from '../types';
+import { INITIAL_CREATOR_REVIEWS } from '../data/testimonialsData';
+import { CreatorReviewsTab } from './CreatorReviewsTab';
+import { LeaveCreatorReviewModal } from './LeaveCreatorReviewModal';
 
 interface CreatorProfileProps {
   creator: Creator;
   onBack: () => void;
   onHire: (creator: Creator) => void;
   onSelectProject: (project: ProjectCaseStudy) => void;
+  backLabel?: string;
 }
 
 export const CreatorProfile: React.FC<CreatorProfileProps> = ({
   creator,
   onBack,
   onHire,
-  onSelectProject
+  onSelectProject,
+  backLabel = 'Back'
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
-  const [activeTab, setActiveTab] = useState<'work' | 'services' | 'experience'>('work');
+  const [activeTab, setActiveTab] = useState<'work' | 'services' | 'experience' | 'reviews'>('work');
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // Persistent Reviews State for Creator
+  const storageKey = `somesa_reviews_${creator.id}`;
+  const [reviews, setReviews] = useState<CreatorReview[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_CREATOR_REVIEWS[creator.id] || [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(reviews));
+    } catch (e) {
+      // ignore
+    }
+  }, [reviews, storageKey]);
+
+  const handleAddReview = (newReview: CreatorReview) => {
+    setReviews(prev => [newReview, ...prev]);
+    setActiveTab('reviews');
+  };
 
   const shareUrl = `${window.location.origin}/creators/${creator.slug}`;
 
@@ -47,7 +80,7 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#0A2E24] hover:text-[#0F3D30] transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to creators directory</span>
+            <span>{backLabel}</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -121,38 +154,47 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
                   {creator.metrics && (
                     <span className="hidden sm:inline text-[#121715]/40">•</span>
                   )}
-                  {creator.metrics && (
-                    <span className="hidden sm:inline font-medium text-[#121715]/80">
-                      ★ {creator.metrics.rating || 4.9} ({creator.metrics.completedProjects} delivered projects)
-                    </span>
-                  )}
+                  <button 
+                    onClick={() => setActiveTab('reviews')}
+                    className="hidden sm:inline-flex items-center gap-1 font-medium text-[#121715]/80 hover:text-[#0A2E24] cursor-pointer transition-colors"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span>{reviews.length > 0 ? (reviews.reduce((a, b) => a + b.rating, 0) / reviews.length).toFixed(1) : '5.0'}</span>
+                    <span className="underline decoration-dotted decoration-[#0A2E24]/30">({reviews.length} client reviews)</span>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Right: Primary Hire Action Button */}
-            <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col gap-3">
+            {/* Right: Primary Hire Action Button & Leave Review */}
+            <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col gap-2.5">
               <button
                 id="profile-hire-primary-btn"
                 onClick={() => onHire(creator)}
-                className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-[#0A2E24] hover:bg-[#0F3D30] active:scale-98 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                className="w-full sm:w-auto px-8 py-3.5 text-base font-semibold text-white bg-[#0A2E24] hover:bg-[#0F3D30] active:scale-98 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <Send className="w-4 h-4 text-[#FF6321]" />
                 <span>Hire {creator.name.split(' ')[0]}</span>
               </button>
 
-              <p className="text-[11px] text-center text-[#121715]/60">
-                Direct inquiry · No booking markups
-              </p>
+              <button
+                id="profile-leave-review-header-btn"
+                onClick={() => setIsReviewModalOpen(true)}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-[#0A2E24] bg-[#F5F2ED] hover:bg-[#E8E3DA] border border-[#E8E3DA] rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5 text-[#FF6321]" />
+                <span>Leave a Review</span>
+              </button>
             </div>
 
           </div>
 
           {/* Quick tab switchers */}
-          <div className="mt-8 pt-6 border-t border-[#E8E3DA] flex items-center gap-2 overflow-x-auto">
+          <div className="mt-8 pt-6 border-t border-[#E8E3DA] flex items-center gap-2 overflow-x-auto scrollbar-none">
             <button
+              id="creator-tab-work"
               onClick={() => setActiveTab('work')}
-              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'work'
                   ? 'bg-[#0A2E24] text-white shadow-xs'
                   : 'bg-[#F5F2ED] text-[#121715]/80 hover:bg-[#E8E3DA]'
@@ -162,8 +204,9 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
             </button>
 
             <button
+              id="creator-tab-services"
               onClick={() => setActiveTab('services')}
-              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'services'
                   ? 'bg-[#0A2E24] text-white shadow-xs'
                   : 'bg-[#F5F2ED] text-[#121715]/80 hover:bg-[#E8E3DA]'
@@ -173,14 +216,28 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
             </button>
 
             <button
+              id="creator-tab-experience"
               onClick={() => setActiveTab('experience')}
-              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'experience'
                   ? 'bg-[#0A2E24] text-white shadow-xs'
                   : 'bg-[#F5F2ED] text-[#121715]/80 hover:bg-[#E8E3DA]'
               }`}
             >
               Experience &amp; Tools
+            </button>
+
+            <button
+              id="creator-tab-reviews"
+              onClick={() => setActiveTab('reviews')}
+              className={`px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'reviews'
+                  ? 'bg-[#0A2E24] text-white shadow-xs'
+                  : 'bg-[#F5F2ED] text-[#121715]/80 hover:bg-[#E8E3DA]'
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              <span>Reviews ({reviews.length})</span>
             </button>
           </div>
 
@@ -189,8 +246,17 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
         {/* 2-Column Content Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Main Left Area: Portfolio & Case Studies / Services / Experience */}
+          {/* Main Left Area: Portfolio & Case Studies / Services / Experience / Reviews */}
           <div className="lg:col-span-8 space-y-8">
+            
+            {/* Tab 4: Reviews Tab */}
+            {activeTab === 'reviews' && (
+              <CreatorReviewsTab
+                creator={creator}
+                reviews={reviews}
+                onOpenReviewModal={() => setIsReviewModalOpen(true)}
+              />
+            )}
             
             {/* Tab 1: My Work (Portfolio Grid) */}
             {activeTab === 'work' && (
@@ -463,6 +529,14 @@ export const CreatorProfile: React.FC<CreatorProfileProps> = ({
         </div>
 
       </div>
+
+      {/* Leave Review Modal */}
+      <LeaveCreatorReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        creator={creator}
+        onSubmitReview={handleAddReview}
+      />
 
     </div>
   );

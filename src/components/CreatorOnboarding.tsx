@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { 
   User, CheckCircle2, ArrowRight, ArrowLeft, Upload, Sparkles, Share2, 
   Copy, Check, MapPin, Briefcase, Plus, Trash2, Smartphone, Instagram, 
-  MessageSquare, Layers, Eye
+  MessageSquare, Layers, Eye, Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Creator, CategoryType, ProjectCaseStudy, CreatorService } from '../types';
+import { saveCreatorToSupabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface CreatorOnboardingProps {
   onPublishSuccess: (newCreator: Creator) => void;
   onCancel: () => void;
   onViewCreatedProfile: (creator: Creator) => void;
+  onViewExamplePortfolio?: () => void;
 }
 
 const SAMPLE_AVATARS = [
@@ -43,7 +45,8 @@ const PRESET_SKILLS = [
 export const CreatorOnboarding: React.FC<CreatorOnboardingProps> = ({
   onPublishSuccess,
   onCancel,
-  onViewCreatedProfile
+  onViewCreatedProfile,
+  onViewExamplePortfolio
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -217,6 +220,8 @@ export const CreatorOnboarding: React.FC<CreatorOnboardingProps> = ({
 
     setPublishedCreator(newCreator);
     onPublishSuccess(newCreator);
+    // Directly persist to Supabase
+    saveCreatorToSupabase(newCreator);
     setStep(4);
 
     // Trigger celebratory confetti
@@ -261,9 +266,22 @@ export const CreatorOnboarding: React.FC<CreatorOnboardingProps> = ({
             <span>Cancel &amp; return to explore</span>
           </button>
 
-          <span className="text-xs font-bold text-[#0A2E24] bg-[#0A2E24]/10 px-3 py-1 rounded-full">
-            Creator Portfolio Builder
-          </span>
+          <div className="flex items-center gap-2">
+            {onViewExamplePortfolio && (
+              <button
+                type="button"
+                onClick={onViewExamplePortfolio}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[#0A2E24] bg-white hover:bg-[#E8E3DA] border border-[#E8E3DA] px-3 py-1 rounded-full transition-colors cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5 text-[#FF6321]" />
+                <span>See Sample Portfolio</span>
+              </button>
+            )}
+
+            <span className="text-xs font-bold text-[#0A2E24] bg-[#0A2E24]/10 px-3 py-1 rounded-full">
+              Portfolio Builder
+            </span>
+          </div>
         </div>
 
         {/* Step Indicator */}
@@ -788,6 +806,16 @@ export const CreatorOnboarding: React.FC<CreatorOnboardingProps> = ({
                 {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedLink ? 'Copied' : 'Copy'}</span>
               </button>
+            </div>
+
+            {/* Supabase / Live status badge */}
+            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#0A2E24] bg-[#0A2E24]/5 py-2 px-4 rounded-full max-w-md mx-auto border border-[#0A2E24]/10">
+              <Database className="w-3.5 h-3.5 text-[#FF6321]" />
+              <span>
+                {isSupabaseConfigured 
+                  ? 'Saved & Synced to Live Supabase Database' 
+                  : 'Published to SOMESA Talent Directory'}
+              </span>
             </div>
 
             {/* Action Buttons */}

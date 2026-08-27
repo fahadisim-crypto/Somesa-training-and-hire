@@ -131,6 +131,7 @@ export interface Course {
   requirements?: string[];
   resources?: CourseResource[];
   questions?: CourseQuestion[];
+  reviews?: CourseReview[];
   audio_sample_url?: string;
   audio_sample_duration_seconds?: number;
   audio_sample_transcript_luganda?: string;
@@ -230,7 +231,71 @@ export interface Creator {
     satisfiedClients: number;
     rating?: number;
   };
+  reviews?: CreatorReview[];
   featured?: boolean;
+}
+
+export interface CreatorReview {
+  id: string;
+  creatorId: string;
+  clientName: string;
+  clientOrganization?: string;
+  clientRole?: string;
+  clientAvatar?: string;
+  clientLocation?: string;
+  rating: number;
+  ratingBreakdown?: {
+    communication: number;
+    quality: number;
+    deliverySpeed: number;
+  };
+  serviceHired: string;
+  comment: string;
+  projectOutcome?: string;
+  createdAt: string;
+  verifiedHire: boolean;
+}
+
+export interface CourseReview {
+  id: string;
+  course_id: string;
+  student_name: string;
+  student_avatar?: string;
+  student_role_or_business?: string;
+  student_location?: string;
+  rating: number;
+  comment: string;
+  comment_luganda?: string;
+  skill_applied?: string;
+  outcome_highlight?: string;
+  created_at: string;
+  verified_learner: boolean;
+  upvotes?: number;
+}
+
+export interface HiringTestimonial {
+  id: string;
+  clientName: string;
+  clientTitle: string;
+  clientCompany: string;
+  clientCompanyType: string;
+  clientLocation: string;
+  clientAvatar: string;
+  creatorId: string;
+  creatorName: string;
+  creatorRole: string;
+  creatorAvatar: string;
+  creatorSlug: string;
+  serviceProvided: string;
+  projectTitle: string;
+  quote: string;
+  quoteLuganda?: string;
+  outcomeMetric: string;
+  metricLabel: string;
+  rating: number;
+  completedDate: string;
+  tags: string[];
+  verifiedHire: boolean;
 }
 
 export interface HireRequest {
@@ -245,6 +310,7 @@ export interface HireRequest {
   projectDescription: string;
   budget?: string;
   timeline: 'As soon as possible' | 'This week' | 'This month' | 'Flexible';
+  timelineEstimate?: string;
   createdAt: string;
   status: 'Pending' | 'Contacted' | 'In Progress' | 'Completed';
 }
@@ -307,6 +373,32 @@ export interface AIPortfolioGenerationResult {
   pitchMessageLuganda: string;
 }
 
+export interface CohortSurveyResponse {
+  id: string;
+  businessName?: string;
+  industry: string;
+  skillsNeeded: string[];
+  hiringTimeline: string;
+  monthlyCreativeBudget?: string;
+  additionalFeedback?: string;
+  contactEmailOrPhone?: string;
+  createdAt: string;
+}
+
+export interface StudentUser {
+  id: string;
+  auth_type: 'google' | 'magic_link' | 'phone_pin';
+  email?: string;
+  phone?: string;
+  name: string;
+  avatar?: string;
+  role: 'student' | 'creator' | 'business' | 'admin';
+  company_name?: string;
+  creator_slug?: string;
+  pin_hash?: string;
+  created_at: string;
+}
+
 export type ActiveView = 
   | 'home'
   | 'creators'
@@ -323,5 +415,6 @@ export type ActiveView =
   | 'teach'
   | 'pricing'
   | 'ai-studio';
+
 
 

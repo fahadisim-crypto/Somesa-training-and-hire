@@ -13,9 +13,13 @@ import {
   BookOpen, 
   GraduationCap, 
   MapPin,
-  Volume2
+  Volume2,
+  User,
+  LogIn,
+  LogOut,
+  Smartphone
 } from 'lucide-react';
-import { ActiveView } from '../types';
+import { ActiveView, StudentUser } from '../types';
 
 interface NavigationProps {
   activeView: ActiveView;
@@ -24,15 +28,22 @@ interface NavigationProps {
   onOpenHireGeneral: () => void;
   savedCount?: number;
   requestsCount?: number;
+  currentUser?: StudentUser | null;
+  onOpenAuthModal?: () => void;
+  onSignOut?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
   activeView,
   setActiveView,
   onSearchClick,
-  requestsCount = 3
+  requestsCount = 3,
+  currentUser,
+  onOpenAuthModal,
+  onSignOut
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const handleNav = (view: ActiveView) => {
     setActiveView(view);
@@ -201,6 +212,87 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#FF6321] animate-pulse" />
               )}
             </button>
+
+            {/* User Profile / Student Sign In */}
+            {currentUser ? (
+              <div className="relative">
+                <button
+                  id="nav-user-profile-btn"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#0A2E24] text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                >
+                  {currentUser.avatar ? (
+                    <img 
+                      src={currentUser.avatar} 
+                      alt={currentUser.name}
+                      className="w-5 h-5 rounded-full object-cover border border-emerald-300"
+                    />
+                  ) : (
+                    <User className="w-3.5 h-3.5 text-emerald-700" />
+                  )}
+                  <span className="max-w-[100px] truncate">{currentUser.name}</span>
+                </button>
+
+                {userDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-[#E8E3DA] p-2 z-50 animate-in fade-in-50 zoom-in-95">
+                    <div className="p-2.5 border-b border-[#E8E3DA]">
+                      <p className="text-xs font-bold text-[#121715] truncate">{currentUser.name}</p>
+                      <p className="text-[11px] text-[#121715]/60 truncate">
+                        {currentUser.phone || currentUser.email || 'SOMESA Student'}
+                      </p>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-[#0A2E24]/10 text-[#0A2E24] text-[10px] font-bold uppercase">
+                        {currentUser.auth_type === 'phone_pin' ? 'Phone & PIN Auth' : 'Verified Google'}
+                      </span>
+                    </div>
+
+                    <div className="pt-1 space-y-0.5">
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          handleNav('onboarding');
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#0A2E24] hover:bg-[#F5F2ED] rounded-xl flex items-center gap-2 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#FF6321]" />
+                        <span>Edit Creator Profile</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          handleNav('learn');
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#0A2E24] hover:bg-[#F5F2ED] rounded-xl flex items-center gap-2 cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-[#0A2E24]" />
+                        <span>My Enrolled Courses</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          if (onSignOut) onSignOut();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer pt-1 border-t border-[#E8E3DA]/60 mt-1"
+                      >
+                        <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                id="nav-student-signin-btn"
+                onClick={onOpenAuthModal}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#0A2E24] hover:text-white bg-white hover:bg-[#0A2E24] border border-[#D6CFC4] hover:border-[#0A2E24] rounded-full transition-all cursor-pointer shadow-2xs"
+                title="Sign in with Google or Student PIN"
+              >
+                <LogIn className="w-3.5 h-3.5 text-[#FF6321]" />
+                <span>Student Sign In</span>
+              </button>
+            )}
 
             {/* Find Talent */}
             <button
@@ -445,24 +537,58 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
 
           {/* Bottom Actions */}
-          <div className="pt-2 border-t border-[#E8E3DA] grid grid-cols-2 gap-2">
-            <button
-              id="mobile-nav-find-talent"
-              onClick={() => handleNav('creators')}
-              className="py-3 px-3 text-center text-xs font-bold text-white bg-[#0A2E24] hover:bg-[#0F3D30] rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#FF6321]" />
-              <span>Find Talent</span>
-            </button>
+          <div className="pt-2 border-t border-[#E8E3DA] space-y-2">
+            {currentUser ? (
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#0A2E24]" />
+                  <div>
+                    <p className="text-xs font-bold text-[#121715]">{currentUser.name}</p>
+                    <p className="text-[10px] text-[#121715]/60">{currentUser.phone || currentUser.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onSignOut) onSignOut();
+                  }}
+                  className="text-xs text-rose-700 font-bold hover:underline"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (onOpenAuthModal) onOpenAuthModal();
+                }}
+                className="w-full py-2.5 px-3 text-center text-xs font-bold text-[#0A2E24] bg-[#FF6321]/15 hover:bg-[#FF6321]/25 border border-[#FF6321]/30 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-3.5 h-3.5 text-[#FF6321]" />
+                <span>Student Sign In (Phone PIN / Google)</span>
+              </button>
+            )}
 
-            <button
-              id="mobile-nav-join-creator"
-              onClick={() => handleNav('for-creators')}
-              className="py-3 px-3 text-center text-xs font-semibold text-[#0A2E24] bg-white hover:bg-[#E8E3DA] border border-[#D6CFC4] rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Join as Creator</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id="mobile-nav-find-talent"
+                onClick={() => handleNav('creators')}
+                className="py-3 px-3 text-center text-xs font-bold text-white bg-[#0A2E24] hover:bg-[#0F3D30] rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#FF6321]" />
+                <span>Find Talent</span>
+              </button>
+
+              <button
+                id="mobile-nav-join-creator"
+                onClick={() => handleNav('for-creators')}
+                className="py-3 px-3 text-center text-xs font-semibold text-[#0A2E24] bg-white hover:bg-[#E8E3DA] border border-[#D6CFC4] rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Join as Creator</span>
+              </button>
+            </div>
           </div>
 
         </div>

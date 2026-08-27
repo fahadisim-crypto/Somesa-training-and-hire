@@ -19,9 +19,16 @@ import {
   Check,
   XCircle,
   Video,
-  Play
+  Play,
+  ClipboardList,
+  Building2,
+  DollarSign,
+  Database,
+  UploadCloud,
+  Loader2
 } from 'lucide-react';
-import { Creator, HireRequest, ProjectCaseStudy, Course, TutorRequest } from '../types';
+import { Creator, HireRequest, ProjectCaseStudy, Course, TutorRequest, CohortSurveyResponse } from '../types';
+import { isSupabaseConfigured, syncAllSampleDataToSupabase } from '../lib/supabase';
 
 interface AdminOverviewProps {
   creators: Creator[];
@@ -29,6 +36,7 @@ interface AdminOverviewProps {
   requests: HireRequest[];
   courses: Course[];
   tutorRequests: TutorRequest[];
+  surveyResponses?: CohortSurveyResponse[];
   onSelectCreator: (creator: Creator) => void;
   onSelectCourse: (course: Course) => void;
   onUpdateRequestStatus: (requestId: string, status: HireRequest['status']) => void;
@@ -42,16 +50,39 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   requests,
   courses,
   tutorRequests,
+  surveyResponses = [],
   onSelectCreator,
   onSelectCourse,
   onUpdateRequestStatus,
   onUpdateTutorRequest,
   onUpdateCourseStatus
 }) => {
-  const [activeTab, setActiveTab] = useState<'platform' | 'tutor-dispatch' | 'course-approval'>('platform');
+  const [activeTab, setActiveTab] = useState<'platform' | 'tutor-dispatch' | 'course-approval' | 'market-research'>('platform');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'All' | 'Pending' | 'In Progress' | 'Contacted' | 'Completed'>('All');
+  const [selectedCreatorFilter, setSelectedCreatorFilter] = useState<string>('All');
   const [selectedTutorStatusFilter, setSelectedTutorStatusFilter] = useState<'All' | 'New' | 'Tutor Assigned' | 'Completed' | 'Cancelled'>('All');
   const [previewingCourse, setPreviewingCourse] = useState<Course | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+
+  const handleSyncToSupabase = async () => {
+    if (!isSupabaseConfigured) return;
+    setIsSyncing(true);
+    setSyncStatusMsg(null);
+    try {
+      const res = await syncAllSampleDataToSupabase(creators, requests, surveyResponses);
+      if (res.success) {
+        setSyncStatusMsg(`Successfully synced ${res.count} creators & projects to Supabase!`);
+      } else {
+        setSyncStatusMsg(`Sync error: ${res.error || 'Failed'}`);
+      }
+    } catch (e: any) {
+      setSyncStatusMsg(`Error: ${e?.message || 'Sync failed'}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatusMsg(null), 5000);
+    }
+  };
 
   const totalCreators = creators.length;
   const availableCreators = creators.filter((c) => c.available).length;
@@ -60,10 +91,13 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const totalRequests = requests.length;
   const newTutorRequestsCount = tutorRequests.filter(t => t.status === 'New').length;
   const pendingCoursesCount = courses.filter(c => c.status === 'pending_review').length;
+  const totalSurveyCount = surveyResponses.length;
+
 
   const filteredRequests = requests.filter((r) => {
-    if (selectedStatusFilter === 'All') return true;
-    return r.status === selectedStatusFilter;
+    const statusMatch = selectedStatusFilter === 'All' || r.status === selectedStatusFilter;
+    const creatorMatch = selectedCreatorFilter === 'All' || r.creatorId === selectedCreatorFilter;
+    return statusMatch && creatorMatch;
   });
 
   const filteredTutorRequests = tutorRequests.filter((t) => {
@@ -96,10 +130,49 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         {/* Header & Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E8E3DA] pb-6">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0A2E24] uppercase tracking-wider bg-[#0A2E24]/10 px-3 py-1 rounded-full mb-2">
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>SOMESA Operations &amp; Dispatch Hub</span>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0A2E24] uppercase tracking-wider bg-[#0A2E24]/10 px-3 py-1 rounded-full">
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>SOMESA Operations &amp; Dispatch Hub</span>
+              </div>
+              
+              <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${
+                isSupabaseConfigured
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : 'bg-amber-100 text-amber-900 border border-amber-200'
+              }`}>
+                <Database className="w-3 h-3 text-[#FF6321]" />
+                <span>{isSupabaseConfigured ? 'Supabase Live Connected' : 'Local Storage Mode'}</span>
+              </div>
+
+              {isSupabaseConfigured && (
+                <button
+                  onClick={handleSyncToSupabase}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-white hover:bg-[#0A2E24] text-[#0A2E24] hover:text-white border border-[#E8E3DA] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Push sample profiles & database records directly to your Supabase tables"
+                >
+                  {isSyncing ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-[#FF6321]" />
+                      <span>Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-3 h-3 text-[#FF6321]" />
+                      <span>Sync All To Supabase</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
+
+            {syncStatusMsg && (
+              <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl mb-2 inline-block animate-in fade-in-50">
+                {syncStatusMsg}
+              </div>
+            )}
+
             <h1 className="font-display font-black text-2xl sm:text-3xl text-[#121715] tracking-tight">
               Platform &amp; Academy Management
             </h1>
@@ -151,6 +224,21 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                   {pendingCoursesCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('market-research')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'market-research'
+                  ? 'bg-[#0A2E24] text-white shadow-xs'
+                  : 'text-[#121715]/70 hover:text-[#0A2E24] hover:bg-[#F5F2ED]'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-[#FF6321]" />
+              <span>Cohort Survey Insights</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-[#0A2E24]/10 text-[#0A2E24] text-[10px] font-bold">
+                {totalSurveyCount}
+              </span>
             </button>
           </div>
         </div>
@@ -266,106 +354,160 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             {/* Recent Client Project Requests Table */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8E3DA] shadow-xs space-y-6">
               
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-display font-bold text-xl text-[#121715]">
-                    Recent Direct Project Requests
-                  </h3>
-                  <p className="text-xs text-[#121715]/60">
-                    Inquiries sent by businesses through the creator hire modal.
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display font-bold text-xl text-[#121715]">
+                      Recent Direct Project Requests
+                    </h3>
+                    <span className="text-xs font-bold bg-[#0A2E24] text-white px-2 py-0.5 rounded-full">
+                      {filteredRequests.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#121715]/60 mt-0.5">
+                    Inquiries sent by businesses through the creator hire modal with deliverable &amp; timeline estimates.
                   </p>
                 </div>
 
-                {/* Status Filter */}
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {(['All', 'Pending', 'In Progress', 'Contacted', 'Completed'] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setSelectedStatusFilter(st)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                        selectedStatusFilter === st
-                          ? 'bg-[#0A2E24] text-white'
-                          : 'bg-[#F5F2ED] text-[#121715]/70 hover:bg-[#E8E3DA]'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Creator Filter Dropdown */}
+                  <select
+                    id="admin-creator-filter"
+                    value={selectedCreatorFilter}
+                    onChange={(e) => setSelectedCreatorFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#F5F2ED] border border-[#E8E3DA] text-[#121715] focus:outline-none focus:border-[#0A2E24] cursor-pointer"
+                  >
+                    <option value="All">All Creators ({creators.length})</option>
+                    {creators.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.primaryCategory})
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-1 overflow-x-auto">
+                    {(['All', 'Pending', 'In Progress', 'Contacted', 'Completed'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setSelectedStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          selectedStatusFilter === st
+                            ? 'bg-[#0A2E24] text-white'
+                            : 'bg-[#F5F2ED] text-[#121715]/70 hover:bg-[#E8E3DA]'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Requests List */}
               <div className="space-y-4">
-                {filteredRequests.map((req) => {
-                  const creatorObj = creators.find((c) => c.id === req.creatorId);
-                  return (
-                    <div
-                      key={req.id}
-                      className="bg-[#F5F2ED] p-5 rounded-2xl border border-[#E8E3DA] flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                {filteredRequests.length === 0 ? (
+                  <div className="text-center py-10 bg-[#F5F2ED]/60 rounded-2xl border border-dashed border-[#E8E3DA] space-y-2">
+                    <Clock className="w-8 h-8 text-[#121715]/40 mx-auto" />
+                    <p className="text-sm font-semibold text-[#121715]/70">No project requests match your current filters</p>
+                    <button
+                      onClick={() => {
+                        setSelectedStatusFilter('All');
+                        setSelectedCreatorFilter('All');
+                      }}
+                      className="text-xs font-bold text-[#0A2E24] hover:underline"
                     >
-                      <div className="space-y-1.5 max-w-xl">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold text-[#121715]">{req.clientName}</span>
-                          {req.organization && (
-                            <span className="text-xs text-[#121715]/60">({req.organization})</span>
-                          )}
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-[#0A2E24]/10 text-[#0A2E24] px-2 py-0.5 rounded-full">
-                            {req.serviceNeeded}
-                          </span>
-                          <span className="text-xs text-[#121715]/40">•</span>
-                          <span className="text-xs text-[#121715]/50">{req.createdAt}</span>
+                      Clear filters
+                    </button>
+                  </div>
+                ) : (
+                  filteredRequests.map((req) => {
+                    const creatorObj = creators.find((c) => c.id === req.creatorId);
+                    return (
+                      <div
+                        key={req.id}
+                        className="bg-[#F5F2ED] p-5 rounded-2xl border border-[#E8E3DA] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 hover:border-[#0A2E24]/20 transition-all"
+                      >
+                        <div className="space-y-2 max-w-2xl">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-[#121715]">{req.clientName}</span>
+                            {req.organization && (
+                              <span className="text-xs text-[#121715]/60">({req.organization})</span>
+                            )}
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-[#0A2E24]/10 text-[#0A2E24] px-2 py-0.5 rounded-full">
+                              {req.serviceNeeded}
+                            </span>
+                            <span className="text-xs text-[#121715]/40">•</span>
+                            <span className="text-xs text-[#121715]/50">{req.createdAt}</span>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-[#121715]/80 leading-relaxed font-editorial italic bg-white/60 p-2.5 rounded-xl border border-[#E8E3DA]/60">
+                            «{req.projectDescription}»
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-[#121715]/70 pt-0.5">
+                            <span className="flex items-center gap-1 font-bold text-[#0A2E24]">
+                              Target Creator: {req.creatorName}
+                            </span>
+                            <span className="text-[#121715]/40">•</span>
+                            <span>Start: <strong className="text-[#121715]">{req.timeline}</strong></span>
+                            
+                            {/* Prominent Timeline Estimate Badge */}
+                            {req.timelineEstimate && (
+                              <span className="inline-flex items-center gap-1 font-semibold text-[#0A2E24] bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-md">
+                                <Clock className="w-3 h-3 text-[#FF6321]" />
+                                <span>Duration: {req.timelineEstimate}</span>
+                              </span>
+                            )}
+
+                            {req.budget && (
+                              <span className="font-medium text-[#121715]">Budget: <strong>{req.budget}</strong></span>
+                            )}
+                            <span className="flex items-center gap-1 font-medium">
+                              <Phone className="w-3 h-3 text-[#FF6321]" />
+                              {req.phone}
+                            </span>
+                            {req.email && (
+                              <span className="text-[#121715]/60">({req.email})</span>
+                            )}
+                          </div>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-[#121715]/80 leading-relaxed font-editorial italic">
-                          «{req.projectDescription}»
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-[#121715]/70 pt-1">
-                          <span className="flex items-center gap-1 font-semibold text-[#0A2E24]">
-                            Target Creator: {req.creatorName}
-                          </span>
-                          <span>Timeline: {req.timeline}</span>
-                          {req.budget && <span>Budget: {req.budget}</span>}
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-[#FF6321]" />
-                            {req.phone}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Status Dropdown & Actions */}
-                      <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-                        <select
-                          value={req.status}
-                          onChange={(e) => onUpdateRequestStatus(req.id, e.target.value as any)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer ${
-                            req.status === 'Pending'
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
-                              : req.status === 'In Progress'
-                              ? 'bg-blue-50 text-blue-800 border-blue-200'
-                              : req.status === 'Contacted'
-                              ? 'bg-purple-50 text-purple-800 border-purple-200'
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          }`}
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="Contacted">Contacted</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                        </select>
-
-                        {creatorObj && (
-                          <button
-                            onClick={() => onSelectCreator(creatorObj)}
-                            className="px-3.5 py-1.5 text-xs font-semibold text-[#0A2E24] bg-white border border-[#E8E3DA] rounded-xl hover:bg-[#F5F2ED] transition-colors cursor-pointer"
+                        {/* Status Dropdown & Actions */}
+                        <div className="flex items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end shrink-0">
+                          <select
+                            value={req.status}
+                            onChange={(e) => onUpdateRequestStatus(req.id, e.target.value as any)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer ${
+                              req.status === 'Pending'
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : req.status === 'In Progress'
+                                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                : req.status === 'Contacted'
+                                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            }`}
                           >
-                            View Creator
-                          </button>
-                        )}
+                            <option value="Pending">Pending</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+
+                          {creatorObj && (
+                            <button
+                              onClick={() => onSelectCreator(creatorObj)}
+                              className="px-3.5 py-1.5 text-xs font-semibold text-[#0A2E24] bg-white border border-[#E8E3DA] rounded-xl hover:bg-[#F5F2ED] transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              View Profile
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
             </div>
@@ -603,6 +745,136 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 ))}
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: Cohort Market Research Survey Insights */}
+        {activeTab === 'market-research' && (
+          <div className="space-y-8 animate-in fade-in-50 duration-200">
+            {/* Header & Quick Summary */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8E3DA] shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-display font-bold text-xl text-[#121715] flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-[#FF6321]" />
+                    <span>Business Survey Feedback for Next Cohort</span>
+                  </h3>
+                  <p className="text-xs text-[#121715]/60 mt-1">
+                    Direct feedback from local businesses on what creative skills and services they struggle to find and want to hire.
+                  </p>
+                </div>
+                <div className="px-3.5 py-1.5 rounded-full bg-[#0A2E24] text-white text-xs font-bold shrink-0">
+                  {surveyResponses.length} Responses Captured
+                </div>
+              </div>
+
+              {/* Aggregated Quick Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div className="bg-[#F5F2ED] p-4 rounded-2xl border border-[#E8E3DA]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A2E24] block mb-1">
+                    Primary Demand Areas
+                  </span>
+                  <p className="text-xs text-[#121715]/80 leading-relaxed font-medium">
+                    Short-Form Video &amp; Reels, Product Photography, and Bilingual Copywriting
+                  </p>
+                </div>
+
+                <div className="bg-[#F5F2ED] p-4 rounded-2xl border border-[#E8E3DA]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A2E24] block mb-1">
+                    Target Hiring Window
+                  </span>
+                  <p className="text-xs text-[#121715]/80 leading-relaxed font-medium">
+                    70%+ plan to commission or recruit within 1–2 months
+                  </p>
+                </div>
+
+                <div className="bg-[#F5F2ED] p-4 rounded-2xl border border-[#E8E3DA]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#0A2E24] block mb-1">
+                    Budget Benchmark
+                  </span>
+                  <p className="text-xs text-[#121715]/80 leading-relaxed font-medium">
+                    UGX 200k – 1.5M / month depending on deliverable volume
+                  </p>
+                </div>
+              </div>
+
+              {/* Submissions List */}
+              <div className="space-y-4 pt-4 border-t border-[#E8E3DA]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#121715]/70">
+                  All Submitted Responses
+                </h4>
+
+                {surveyResponses.length === 0 ? (
+                  <div className="text-center py-10 bg-[#F5F2ED]/60 rounded-2xl border border-dashed border-[#E8E3DA]">
+                    <ClipboardList className="w-8 h-8 text-[#121715]/40 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-[#121715]/70">No survey responses submitted yet.</p>
+                  </div>
+                ) : (
+                  surveyResponses.map((res) => (
+                    <div
+                      key={res.id}
+                      className="bg-[#F5F2ED] p-5 sm:p-6 rounded-2xl border border-[#E8E3DA] space-y-3 hover:border-[#0A2E24]/30 transition-all"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-[#121715]">
+                            {res.businessName || 'Anonymous Business'}
+                          </span>
+                          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#0A2E24]/10 text-[#0A2E24]">
+                            {res.industry}
+                          </span>
+                        </div>
+                        <span className="text-xs text-[#121715]/50">{res.createdAt}</span>
+                      </div>
+
+                      {/* Skills tags */}
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-[#121715]/70 uppercase tracking-wider block">
+                          Skills &amp; Deliverables Desired:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {res.skillsNeeded.map((skill) => (
+                            <span
+                              key={skill}
+                              className="text-xs font-semibold bg-white text-[#0A2E24] px-2.5 py-1 rounded-lg border border-[#E8E3DA]"
+                            >
+                              ✓ {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Timeline & Budget & Contact */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#121715]/75 pt-1">
+                        <span>Timeline: <strong>{res.hiringTimeline}</strong></span>
+                        {res.monthlyCreativeBudget && (
+                          <>
+                            <span>•</span>
+                            <span>Budget: <strong>{res.monthlyCreativeBudget}</strong></span>
+                          </>
+                        )}
+                        {res.contactEmailOrPhone && (
+                          <>
+                            <span>•</span>
+                            <span className="text-[#0A2E24] font-semibold flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-[#FF6321]" />
+                              {res.contactEmailOrPhone}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Additional feedback note */}
+                      {res.additionalFeedback && (
+                        <p className="text-xs sm:text-sm text-[#121715]/80 bg-white/70 p-3 rounded-xl border border-[#E8E3DA]/60 italic font-editorial">
+                          «{res.additionalFeedback}»
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}

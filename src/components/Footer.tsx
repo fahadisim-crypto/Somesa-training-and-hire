@@ -139,6 +139,17 @@ export const Footer: React.FC<FooterProps> = ({
                   Operations Hub
                 </button>
               </li>
+              <li>
+                <a
+                  href="[INSERT_YOUR_GOOGLE_FORM_LINK_HERE]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-300 hover:text-white transition-colors flex items-center gap-1 font-semibold"
+                >
+                  <span>Cohort Survey</span>
+                  <span className="text-[9px] bg-[#FF6321] text-white px-1.5 py-0.2 rounded font-bold">1 Min</span>
+                </a>
+              </li>
             </ul>
           </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, Send, Clock, Sparkles, Phone, Mail, Building, User, ArrowRight, MessageSquare, Check } from 'lucide-react';
+import { X, CheckCircle2, Send, Clock, Sparkles, Phone, Mail, Building, User, ArrowRight, MessageSquare, Check, Calendar, Hourglass } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Creator, HireRequest } from '../types';
 
@@ -26,6 +26,9 @@ export const HireModal: React.FC<HireModalProps> = ({
   const [projectDescription, setProjectDescription] = useState('');
   const [budget, setBudget] = useState('');
   const [timeline, setTimeline] = useState<'As soon as possible' | 'This week' | 'This month' | 'Flexible'>('This week');
+  const [timelineEstimate, setTimelineEstimate] = useState<string>('');
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [customDurationText, setCustomDurationText] = useState('');
   
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +42,19 @@ export const HireModal: React.FC<HireModalProps> = ({
   }, [creator]);
 
   if (!isOpen || !creator) return null;
+
+  const durationPresets = [
+    '1–3 Days (Rush / Fast delivery)',
+    '4–7 Days (1 Week standard)',
+    '1–2 Weeks (Standard campaign)',
+    '2–4 Weeks (Multi-deliverable)',
+    '1 Month+ (Monthly retainer)',
+    'Flexible / Open to discussion'
+  ];
+
+  const effectiveTimelineEstimate = isCustomDuration 
+    ? customDurationText.trim() 
+    : timelineEstimate.trim();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +75,7 @@ export const HireModal: React.FC<HireModalProps> = ({
         projectDescription: projectDescription.trim(),
         budget: budget.trim() || undefined,
         timeline,
+        timelineEstimate: effectiveTimelineEstimate || undefined,
       });
       setIsSubmitting(false);
       setIsSubmitted(true);
@@ -113,6 +130,9 @@ export const HireModal: React.FC<HireModalProps> = ({
     setEmail('');
     setProjectDescription('');
     setBudget('');
+    setTimelineEstimate('');
+    setIsCustomDuration(false);
+    setCustomDurationText('');
     onClose();
   };
 
@@ -272,7 +292,7 @@ export const HireModal: React.FC<HireModalProps> = ({
                 />
               </div>
 
-              {/* Budget & Timeline */}
+              {/* Budget & Start Timeline */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#121715] mb-1.5">
@@ -289,7 +309,7 @@ export const HireModal: React.FC<HireModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-[#121715] mb-1.5">
-                    Timeline
+                    When do you need to start?
                   </label>
                   <select
                     value={timeline}
@@ -302,6 +322,109 @@ export const HireModal: React.FC<HireModalProps> = ({
                     <option value="Flexible">Flexible</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Timeline Estimate (Project Duration) - Optional */}
+              <div className="bg-white/60 p-4 rounded-2xl border border-[#E8E3DA] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[#121715] flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#FF6321]" />
+                    <span>Timeline Estimate / Project Duration</span>
+                    <span className="text-[#121715]/40 font-normal text-[11px]">(optional)</span>
+                  </label>
+                  
+                  {!isCustomDuration && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomDuration(true);
+                        setCustomDurationText(timelineEstimate);
+                      }}
+                      className="text-[11px] font-semibold text-[#0A2E24] hover:underline cursor-pointer"
+                    >
+                      Custom duration
+                    </button>
+                  )}
+                </div>
+
+                {!isCustomDuration ? (
+                  <>
+                    <div className="relative">
+                      <select
+                        id="timeline-estimate-select"
+                        value={timelineEstimate}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setIsCustomDuration(true);
+                            setCustomDurationText('');
+                          } else {
+                            setTimelineEstimate(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-[#E8E3DA] focus:border-[#0A2E24] rounded-xl text-sm focus:outline-none cursor-pointer text-[#121715]"
+                      >
+                        <option value="">Select expected project duration (Optional)</option>
+                        {durationPresets.map((preset) => (
+                          <option key={preset} value={preset}>
+                            {preset}
+                          </option>
+                        ))}
+                        <option value="__custom__">✏️ Custom duration...</option>
+                      </select>
+                    </div>
+
+                    {/* Quick duration pill tags */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {[
+                        { label: '1–3 Days', value: '1–3 Days (Rush / Fast delivery)' },
+                        { label: '1 Week', value: '4–7 Days (1 Week standard)' },
+                        { label: '2 Weeks', value: '1–2 Weeks (Standard campaign)' },
+                        { label: '1 Month+', value: '1 Month+ (Monthly retainer)' },
+                        { label: 'Flexible', value: 'Flexible / Open to discussion' }
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setTimelineEstimate(item.value)}
+                          className={`px-2.5 py-1 text-[11px] font-medium rounded-lg border transition-all cursor-pointer ${
+                            timelineEstimate === item.value
+                              ? 'bg-[#0A2E24] text-white border-[#0A2E24] shadow-xs'
+                              : 'bg-white text-[#121715]/75 border-[#E8E3DA] hover:border-[#0A2E24]/30 hover:bg-[#F5F2ED]'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        id="timeline-estimate-custom-input"
+                        value={customDurationText}
+                        onChange={(e) => setCustomDurationText(e.target.value)}
+                        placeholder="e.g. 2 days shooting + 3 days editing"
+                        className="flex-1 px-3.5 py-2.5 bg-white border border-[#E8E3DA] focus:border-[#0A2E24] rounded-xl text-sm focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomDuration(false);
+                          setTimelineEstimate(customDurationText || '');
+                        }}
+                        className="px-3 py-2 text-xs font-semibold text-[#0A2E24] bg-white border border-[#E8E3DA] rounded-xl hover:bg-[#F5F2ED] cursor-pointer whitespace-nowrap"
+                      >
+                        Use Presets
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-[#121715]/60">
+                  Helps {creator.name.split(' ')[0]} anticipate workload and reserve calendar dates for your deliverables.
+                </p>
               </div>
 
               {/* Submit Button */}
@@ -360,9 +483,20 @@ export const HireModal: React.FC<HireModalProps> = ({
                   <span className="font-bold text-[#0A2E24]">{serviceNeeded}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-2">
-                  <span className="text-[#121715]/60 font-medium">Timeline</span>
+                  <span className="text-[#121715]/60 font-medium">Start Timeframe</span>
                   <span className="font-semibold text-[#121715]">{timeline}</span>
                 </div>
+                {effectiveTimelineEstimate && (
+                  <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-2">
+                    <span className="text-[#121715]/60 font-medium flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-[#FF6321]" />
+                      <span>Timeline Estimate</span>
+                    </span>
+                    <span className="font-bold text-[#0A2E24] bg-[#0A2E24]/10 px-2 py-0.5 rounded-md">
+                      {effectiveTimelineEstimate}
+                    </span>
+                  </div>
+                )}
                 {budget && (
                   <div className="flex items-center justify-between border-b border-[#E8E3DA] pb-2">
                     <span className="text-[#121715]/60 font-medium">Budget Est.</span>

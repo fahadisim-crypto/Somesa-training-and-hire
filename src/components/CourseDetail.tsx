@@ -35,11 +35,15 @@ import {
   ExternalLink,
   Info,
   MessageSquare,
-  HelpCircle
+  HelpCircle,
+  MessageSquarePlus
 } from 'lucide-react';
-import { Course, Lesson, Creator, CourseResource } from '../types';
+import { Course, Lesson, Creator, CourseResource, CourseReview } from '../types';
 import confetti from 'canvas-confetti';
 import { CourseQnATab } from './CourseQnATab';
+import { CourseReviewsTab } from './CourseReviewsTab';
+import { LeaveCourseReviewModal } from './LeaveCourseReviewModal';
+import { INITIAL_COURSE_REVIEWS } from '../data/testimonialsData';
 
 interface CourseDetailProps {
   course: Course;
@@ -69,7 +73,35 @@ export const CourseDetail: React.FC<CourseDetailProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Course Navigation Tab State
-  const [activeDetailTab, setActiveDetailTab] = useState<'all' | 'notes' | 'resources' | 'qna'>('all');
+  const [activeDetailTab, setActiveDetailTab] = useState<'all' | 'notes' | 'resources' | 'qna' | 'reviews'>('all');
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // Persistent Course Reviews State
+  const reviewsStorageKey = `somesa_course_reviews_${course.id}`;
+  const [courseReviews, setCourseReviews] = useState<CourseReview[]>(() => {
+    try {
+      const saved = localStorage.getItem(reviewsStorageKey);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_COURSE_REVIEWS[course.id] || [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(reviewsStorageKey, JSON.stringify(courseReviews));
+    } catch (e) {
+      // ignore
+    }
+  }, [courseReviews, reviewsStorageKey]);
+
+  const handleAddCourseReview = (newReview: CourseReview) => {
+    setCourseReviews(prev => [newReview, ...prev]);
+    setActiveDetailTab('reviews');
+  };
 
   // Course Resources UI State
   const [resourceFilter, setResourceFilter] = useState<'all' | 'pdf' | 'image' | 'template' | 'lesson'>('all');
@@ -706,6 +738,19 @@ Contact: info@somesa.ug
                   Live Q&amp;A
                 </span>
               </button>
+
+              <button
+                id="course-tab-btn-reviews"
+                onClick={() => setActiveDetailTab('reviews')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeDetailTab === 'reviews'
+                    ? 'bg-[#0A2E24] text-white shadow-xs'
+                    : 'text-[#121715]/70 hover:text-[#121715] hover:bg-[#F5F2ED]'
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span>Reviews ({courseReviews.length})</span>
+              </button>
             </div>
 
             {/* Currently Playing Lesson Bar & Info */}
@@ -1112,6 +1157,19 @@ Contact: info@somesa.ug
                   isEnrolled={isEnrolled}
                   hasAllAccessPass={hasAllAccessPass}
                   onOpenEnrollModal={() => setShowEnrollModal(true)}
+                />
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* STUDENT REVIEWS & TESTIMONIALS SECTION                                    */}
+            {/* ========================================================================= */}
+            {(activeDetailTab === 'all' || activeDetailTab === 'reviews') && (
+              <div id="course-reviews-section" className="scroll-mt-20">
+                <CourseReviewsTab
+                  course={course}
+                  reviews={courseReviews}
+                  onOpenReviewModal={() => setIsReviewModalOpen(true)}
                 />
               </div>
             )}
@@ -1632,6 +1690,14 @@ Contact: info@somesa.ug
           </div>
         </div>
       )}
+
+      {/* Leave Course Review Modal */}
+      <LeaveCourseReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        course={course}
+        onSubmitReview={handleAddCourseReview}
+      />
 
     </div>
   );
