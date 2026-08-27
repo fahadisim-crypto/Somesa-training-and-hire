@@ -1,0 +1,6 @@
+{
+  "name": "SOMESA — African Digital Talent Platform",
+  "description": "Public-facing talent discovery, portfolio, and creative services platform connecting emerging African digital talent with businesses, featuring the Soma & Somesa Luganda Video Academy and Local Tutor Dispatch System.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
